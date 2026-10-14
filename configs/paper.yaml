@@ -1,0 +1,55 @@
+protocol:
+  query_budget: 20000
+  initial_pool: 32
+  candidate_batch: 16
+  repair_batch: 32
+  rounds: 4
+  acquisition_calls: 4096
+  confirmation_repeats: 4
+  final_repeats: 8
+  refresh_repeats: 4
+  admission_threshold: 0.01
+  residual_threshold: 0.041
+  refresh_rule: residual
+  refresh_interval: 2
+  exposure: blind
+  headline_temperature: 0.0
+  repeat_temperature: 0.3
+  retries: 2
+  timeout_seconds: 30
+  hull_distance_tolerance: 1.0e-6
+training:
+  rank: 16
+  scale: 32
+  learning_rate: 2.0e-5
+  rollout_batch: 8
+  gradient_accumulation: 2
+  group_size: 8
+  updates_per_round: 2
+  total_optimizer_steps: 8
+  activation_checkpointing: true
+  clip: 0.2
+  kl_weight: 0.04
+  advantage_epsilon: 1.0e-4
+  gradient_norm: 1.0
+  weight_decay: 0.0
+execution:
+  dtype: bfloat16
+  max_input_tokens: 1024
+  max_completion_tokens: 256
+  sender_temperature: 1.0
+  enable_thinking: false
+  seeds: [0, 1, 2, 3, 4]
+models:
+  Qwen3:
+    checkpoint: Qwen/Qwen3-8B
+    revision: null
+  Llama3:
+    checkpoint: meta-llama/Llama-3.1-8B-Instruct
+    revision: null
+  Gemma3:
+    checkpoint: google/gemma-3-12b-it
+    revision: null
+receiver:
+  checkpoint: meta-llama/Llama-3.1-8B-Instruct
+  revision: null

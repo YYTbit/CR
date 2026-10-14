@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: Please cite the accompanying paper when using this software.
+title: "The Cost of Reinterpretation: Sender Adaptation against Measured Language Receivers"
+type: software
+version: 1.0.0
+authors:
+  - name: Anonymous
+license: MIT

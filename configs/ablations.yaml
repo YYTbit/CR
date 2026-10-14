@@ -1,0 +1,30 @@
+coarse:
+  dual_guided: {method: dual_guided}
+  static_mr: {method: static_mr}
+  random_expansion: {method: random_expansion}
+  posterior_value: {method: posterior_value}
+  shared_measurement: {method: shared_measurement}
+  cached_response_map: {method: cached_response}
+  direct_generator_policy: {method: direct_generator}
+fine:
+  initial_sixteen: {initial_pool: 16}
+  initial_sixty_four: {initial_pool: 64}
+  candidate_eight: {candidate_batch: 8}
+  candidate_thirty_two: {candidate_batch: 32}
+  rounds_two: {rounds: 2}
+  rounds_eight: {rounds: 8}
+  threshold_zero: {admission_threshold: 0.0}
+  threshold_two_hundredths: {admission_threshold: 0.02}
+  confirmation_two: {confirmation_repeats: 2}
+  confirmation_eight: {confirmation_repeats: 8}
+  final_four: {final_repeats: 4}
+  final_sixteen: {final_repeats: 16}
+refresh:
+  never: {refresh_rule: never}
+  periodic: {refresh_rule: periodic}
+  residual: {refresh_rule: residual}
+  continual: {refresh_rule: continual}
+exposure:
+  blind: {exposure: blind}
+  history: {exposure: history}
+  announced: {exposure: announced}

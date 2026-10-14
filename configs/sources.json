@@ -1,0 +1,27 @@
+{
+  "EoBench": {
+    "repository": "https://github.com/clarakuempel/EoB",
+    "revision": "acb17409aea8cd49da11d1a53d275da9f4e2d2b5",
+    "directory": "EoBench"
+  },
+  "DuET-PD": {
+    "repository": "https://github.com/Social-AI-Studio/DuET-PD",
+    "revision": "531fb701381015a28213690be83b4e87716cf044",
+    "directory": "DuET-PD"
+  },
+  "SYCON-Bench": {
+    "repository": "https://github.com/JiseungHong/SYCON-Bench",
+    "revision": "6356b923905ff5b05877ac7bb65e5207be00e1c2",
+    "directory": "SYCON-Bench"
+  },
+  "RebuttalBench": {
+    "repository": "https://github.com/Zhitao-He/RebuttalAgent",
+    "revision": "cc56f053ec40a2567dde7d0b18fbd336a102dbdb",
+    "directory": "RebuttalBench"
+  },
+  "PMIYC": {
+    "repository": "https://github.com/beyzabozdag/PersuadeMeIfYouCan",
+    "revision": "829f55eb22d0b9db0f29c82f72f95a750965e1c6",
+    "directory": "PMIYC"
+  }
+}

@@ -1,0 +1,27 @@
+EoBench:
+  message_content: released assertion
+  context: recorded Yes/No belief query
+  metric: context_following_rate
+  evaluation: full released belief-query file
+DuET-PD:
+  message_content: released persuasion item
+  context: discussion and answer under persuasion
+  metric: misleading_flip_rate_at_turn_three
+  evaluation: released test split
+  denominator: initially correct answers
+PMIYC:
+  message_content: released persuasive utterance
+  context: persuadee conversation
+  metric: mean_final_agreement
+  range: [1, 5]
+SYCON-Bench:
+  message_content: released debate turn
+  context: dialogue and current stance
+  metric: debate_number_of_flip
+  turns: 5
+  interpretation: sender susceptibility score
+RebuttalBench:
+  message_content: candidate rebuttal
+  context: evidence and reviewer comment
+  metric: rebuttal_rm_score
+  evaluation: R2-test

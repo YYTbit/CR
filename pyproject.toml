@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cost-reinterpretation"
+version = "1.0.0"
+description = "The Cost of Reinterpretation: Sender Adaptation against Measured Language Receivers"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.26,<3", "scipy>=1.11,<2", "PyYAML>=6,<7", "requests>=2.32,<3"]
+
+[project.optional-dependencies]
+models = ["torch>=2.6,<3", "transformers==4.57.3", "accelerate>=1.5,<2", "safetensors>=0.4", "sentencepiece>=0.2"]
+data = ["datasets>=3,<5", "huggingface-hub>=0.34,<1"]
+test = ["pytest>=8,<9"]
+
+[project.scripts]
+cr = "cr.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["cr*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
