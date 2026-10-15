@@ -33,6 +33,7 @@ def minimum_reinterpretation(prior, marginal, posteriors):
                 "residual": difference}
     removal_fraction = np.divide(surplus, mean, out=np.zeros_like(mean), where=mean > 0)
     removed = joint * removal_fraction
+    # Rowwise redistribution preserves message mass while restoring the prior marginal.
     adjusted = joint - removed + removed.sum(axis=1)[:, None] * deficit[None, :] / moved
     updated = beliefs.copy()
     positive = marginal > 0

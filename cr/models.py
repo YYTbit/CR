@@ -126,6 +126,7 @@ class CausalBackend:
         start = logits.shape[0] - count - 1
         if start < 0:
             raise ValueError("Model logits omitted a completion prediction")
+        # The prompt's final-position logit predicts the first completion token.
         logits = logits[start:start + count]
         target = torch.tensor(completion.completion_ids, dtype=torch.long, device=logits.device)
         return torch.log_softmax(logits, dim=-1).gather(1, target[:, None]).squeeze(1)
@@ -145,6 +146,7 @@ class CausalBackend:
         return self.adapters
 
     def reference_log_probabilities(self, completion):
+        # The frozen base policy supplies the KL anchor with sender adapters disabled.
         with disabled_adapters(self.adapters), torch.no_grad():
             return self.token_log_probabilities(completion).detach()
 

@@ -32,6 +32,7 @@ def grpo_loss(current, preceding, reference, advantage, clip=0.2, kl_weight=0.04
         raise ValueError("GRPO likelihoods have matching completion-token dimensions")
     if not 0 < clip < 1 or kl_weight < 0:
         raise ValueError("GRPO clipping and KL settings are valid")
+    # Tokenwise ratios align clipping and the KL penalty with generated completion tokens.
     ratio = torch.exp(current - preceding)
     surrogate = torch.minimum(ratio * advantage, torch.clamp(ratio, 1 - clip, 1 + clip) * advantage)
     difference = reference - current
@@ -70,6 +71,7 @@ class GRPOTrainer:
             raise ValueError("GRPO uses at least two generations per context")
         samples = []
         prices = None if payoff else solution.state_prices.copy()
+        # Sharing one state across a prompt group makes sampled-message rewards comparable.
         state = int(np.random.default_rng(seed).choice(len(self.generator.game.prior), p=self.generator.game.prior))
         for index in range(count):
             if solution.receiver_signature != self.engine.response_signature(exposure, repeats):
@@ -133,6 +135,7 @@ class GRPOTrainer:
                     current = self.backend.token_log_probabilities(sample.completion)
                     loss = grpo_loss(current, sample.old_log_probabilities, sample.reference_log_probabilities,
                                      float(advantage), self.settings.get("clip", 0.2), self.settings.get("kl_weight", 0.04))
+                    # Scaling by group size gives each sampled group equal weight in the batch loss.
                     (loss / (len(batch_groups) * len(group))).backward()
                     losses.append(float(loss.detach()))
                     rewards.append(sample.reward)
