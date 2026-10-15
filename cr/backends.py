@@ -20,12 +20,12 @@ class ApiBackend:
         return {"kind": "api", "model": self.model, "revision": self.revision, "max_tokens": self.max_tokens,
                 "endpoint_signature": signature(self.endpoint)}
 
-    def complete(self, messages, temperature=0.0, seed=0):
+    def complete(self, messages, temperature=0.0, seed=0, max_tokens=None):
         key = os.environ.get(self.key_variable)
         headers = {"Authorization": "Bearer " + key} if key else {}
         response = self.session.post(self.endpoint, headers=headers,
                                      json={"model": self.model, "messages": messages, "temperature": temperature,
-                                           "seed": seed, "max_tokens": self.max_tokens}, timeout=self.timeout)
+                                           "seed": seed, "max_tokens": int(max_tokens or self.max_tokens)}, timeout=self.timeout)
         response.raise_for_status()
         record = response.json()
         return {"text": record["choices"][0]["message"]["content"], "usage": record.get("usage", {})}

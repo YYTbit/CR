@@ -1,0 +1,9 @@
+factory: cr.native_evaluators:RebuttalEvaluator
+options:
+  source: external/RebuttalBench
+  expected_revision: cc56f053ec40a2567dde7d0b18fbd336a102dbdb
+  schema: data/prepared/schema.json
+  backend:
+    model: reward_model
+    endpoint: http://localhost:8000/v1/chat/completions
+    max_tokens: 1024

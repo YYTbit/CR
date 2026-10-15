@@ -107,8 +107,8 @@ class CausalBackend:
         text = self.tokenizer.decode(output, skip_special_tokens=True).strip()
         return Completion(prompt, tuple(output), text, int(seed))
 
-    def complete(self, messages, temperature=0.0, seed=0):
-        completion = self.sample(messages, temperature, seed)
+    def complete(self, messages, temperature=0.0, seed=0, max_tokens=None):
+        completion = self.sample(messages, temperature, seed, max_tokens)
         return {"text": completion.text, "usage": {"prompt_tokens": len(completion.input_ids),
                                                      "completion_tokens": len(completion.completion_ids)}}
 

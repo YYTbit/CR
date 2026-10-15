@@ -88,6 +88,7 @@ def prepare_file(source, schema, resource, output):
                                             "message_ids": [message.identifier for message in pool]}
                                        for key, pool in partition_messages(messages).items()})
     write_json(root / "resource.json", metadata)
+    write_json(root / "schema.json", schema)
     return metadata
 
 

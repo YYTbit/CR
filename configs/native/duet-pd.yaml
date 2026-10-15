@@ -1,0 +1,9 @@
+factory: cr.native_evaluators:DuETEvaluator
+options:
+  source: external/DuET-PD
+  expected_revision: 531fb701381015a28213690be83b4e87716cf044
+  schema: data/prepared/schema.json
+  backend:
+    model: meta-llama/Llama-3.1-8B-Instruct
+    endpoint: http://localhost:8000/v1/chat/completions
+    max_tokens: 1024

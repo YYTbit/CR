@@ -333,11 +333,14 @@ def main(argv=None):
                 sender = MixtureSender(game, read_messages(args.messages), policy)
         else:
             sender = create_generator(args, read_config(args.config), game)
+        evaluator = None
         try:
             evaluator = load_native_evaluator(configuration["factory"], configuration.get("options", {}))
             rows = evaluate_native(evaluator, read_records(args.records), sender, game, args.seed)
             write_json(args.output, rows)
         finally:
+            if evaluator is not None and callable(getattr(evaluator, "close", None)):
+                evaluator.close()
             if args.procedure == "generator":
                 sender.backend.close()
     native.set_defaults(function=native_command)

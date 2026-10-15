@@ -1,0 +1,14 @@
+factory: cr.native_evaluators:SYCONEvaluator
+options:
+  source: external/SYCON-Bench
+  expected_revision: 6356b923905ff5b05877ac7bb65e5207be00e1c2
+  schema: data/prepared/schema.json
+  backend:
+    model: meta-llama/Llama-3.1-8B-Instruct
+    endpoint: http://localhost:8000/v1/chat/completions
+    max_tokens: 1024
+  scenario: Debate
+  judge_backend:
+    model: gpt-4o
+    endpoint: http://localhost:8001/v1/chat/completions
+    max_tokens: 10
