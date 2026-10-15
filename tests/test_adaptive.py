@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from cr.adaptive import AdaptiveSender
 from cr.measurement import MeasurementEngine, QueryLedger
@@ -96,3 +97,74 @@ def test_direct_generator_reports_its_own_deployed_value_and_compatibility(tmp_p
     assert not result["deployed_policy_audit"]["compatible"]
     assert result["deployed_policy_audit"]["sender_utility"] == 1
     assert result["optimized_mixture_value"] == .5
+
+
+def test_feasibility_repair_generates_messages_for_an_exhausted_context_pool(tmp_path):
+    class Generator(GeneratorFixture):
+        def propose(self, contexts, count, seed, free=False):
+            context, proposition = contexts[0]
+            return [Message("generated_for", "anchor_for", context, proposition)]
+
+    engine = MeasurementEngine(game(), ReceiverFixture(), QueryLedger(6))
+    runner = AdaptiveSender(game(), catalog()[:1], Generator(), engine,
+                            {"initial_pool": 1, "rounds": 0, "final_repeats": 1},
+                            tmp_path / "run")
+    result = runner.run()
+    assert result["status"] == "ready"
+    assert result["deployed_policy_audit"]["compatible"]
+    assert [message.text for message in runner.messages] == ["anchor_against", "anchor_for"]
+    assert engine.ledger.charged == 6 and engine.ledger.shared == 2
+    assert [row["phase"] for row in engine.ledger.records].count("repair") == 2
+
+
+def test_feasibility_repair_stops_when_generation_repeats_a_known_message(tmp_path):
+    class Generator(GeneratorFixture):
+        def propose(self, contexts, count, seed, free=False):
+            context, proposition = contexts[0]
+            return [Message("duplicate", "anchor_against", context, proposition)]
+
+    engine = MeasurementEngine(game(), ReceiverFixture(), QueryLedger(10))
+    runner = AdaptiveSender(game(), catalog()[:1], Generator(), engine,
+                            {"initial_pool": 1}, tmp_path / "run")
+    assert runner.initialize() is None
+    assert runner.repair_batches == 1 and engine.ledger.charged == 0
+
+
+def test_feasibility_repair_rejects_a_candidate_from_another_context(tmp_path):
+    class Generator(GeneratorFixture):
+        def propose(self, contexts, count, seed, free=False):
+            return [Message("other", "anchor_for", "other context", "other topic")]
+
+    engine = MeasurementEngine(game(), ReceiverFixture(), QueryLedger(10))
+    runner = AdaptiveSender(game(), catalog()[:1], Generator(), engine,
+                            {"initial_pool": 1}, tmp_path / "run")
+    with pytest.raises(ValueError, match="conditioning context"):
+        runner.initialize()
+
+
+@pytest.mark.parametrize("method", ["static_mr", "random_expansion"])
+def test_pool_baselines_do_not_use_generated_feasibility_candidates(method, tmp_path):
+    class Generator(GeneratorFixture):
+        def propose(self, *args, **kwargs):
+            raise AssertionError("The pool baseline does not generate feasibility candidates")
+
+    engine = MeasurementEngine(game(), ReceiverFixture(), QueryLedger(10))
+    released = catalog() if method == "static_mr" else catalog()[:1]
+    runner = AdaptiveSender(game(), released, Generator(), engine,
+                            {"initial_pool": 1}, tmp_path / "run", method=method)
+    assert runner.initialize() is None
+    assert len(runner.messages) == 1 and engine.ledger.charged == 0
+
+
+def test_random_pool_baseline_can_repair_with_remaining_released_messages(tmp_path):
+    class Generator(GeneratorFixture):
+        def propose(self, *args, **kwargs):
+            raise AssertionError("The pool baseline uses its released catalog")
+
+    engine = MeasurementEngine(game(), ReceiverFixture(), QueryLedger(2))
+    runner = AdaptiveSender(game(), catalog(), Generator(), engine,
+                            {"initial_pool": 1}, tmp_path / "run", method="random_expansion")
+    solution = runner.initialize()
+    np.testing.assert_allclose(solution.marginal @ runner.channel().posteriors, game().prior)
+    assert len(runner.messages) == 2 and engine.ledger.charged == 2
+    assert engine.ledger.shared == 2

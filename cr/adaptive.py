@@ -48,6 +48,7 @@ class AdaptiveSender:
         self.records = []
         self.receiver_checkpoint = self.engine.checkpoint_signature
         self.repair_attempts = set()
+        self.repair_batches = 0
         self.pool_repeats = 1
 
     def channel(self):
@@ -104,13 +105,38 @@ class AdaptiveSender:
                 append_json(self.output / "feasibility.jsonl", {"round": round_id, "hull_distance": distance,
                                                                 "within_hull_tolerance": distance <= self.settings.get("hull_distance_tolerance", 1e-6),
                                                                 "exact_program_feasible": False})
+                if self.method == "static_mr":
+                    return None
                 seen = {message.identifier for message in self.messages}
                 current = self.engine.response_signature(self.exposure, self.pool_repeats)
                 remaining = [message for message in self.catalog if message.identifier not in seen
                              and (current, message.identifier) not in self.repair_attempts]
-                if not remaining:
+                count = min(int(self.settings.get("repair_batch", 32)),
+                            self.engine.ledger.remaining("repair", round_id) // (2 * self.pool_repeats))
+                if count < 1:
                     return None
-                batch = remaining[:int(self.settings.get("repair_batch", 32))]
+                if remaining:
+                    batch = remaining[:count]
+                else:
+                    if self.method == "random_expansion":
+                        return None
+                    # Feasibility repair can expand a context's pool after its released messages are exhausted.
+                    seed = int(self.settings.get("seed", 0)) + 2000000 + self.repair_batches
+                    self.repair_batches += 1
+                    candidates = self.generator.propose([(self.context, self.proposition)], count, seed)
+                    fingerprints = {message.fingerprint for message in self.messages}
+                    batch = []
+                    for message in candidates:
+                        if message.group_id != self.group_id:
+                            raise ValueError("Feasibility candidates require the current conditioning context")
+                        if (message.identifier in seen or message.fingerprint in fingerprints
+                                or (current, message.identifier) in self.repair_attempts):
+                            continue
+                        batch.append(message)
+                        seen.add(message.identifier)
+                        fingerprints.add(message.fingerprint)
+                    if not batch:
+                        return None
                 self.repair_attempts.update((current, message.identifier) for message in batch)
                 messages, readings = self.measure_batch(batch, "repair", self.pool_repeats, round_id)
                 if not messages:
