@@ -20,7 +20,7 @@ python -m cr prepare --records data/released.jsonl --schema data/schema.yaml \
   --resource EoBench --output data/prepared
 ```
 
-Preparation writes `game.json`, `messages.json`, `groups.json`, `resource.json`, and the normalized `schema.json`. Each message contains `identifier`, `text`, `context`, and `proposition`. The prior is computed from the supplied labels. Keep checkpoints, datasets, and runtime outputs outside version control.
+Preparation writes `game.json`, `messages.json`, `groups.json`, `resource.json`, and the normalized `schema.json`. Each message contains `identifier`, `text`, `context`, and `proposition`. The prior is computed from the supplied labels.
 
 ## Execution
 
