@@ -18,15 +18,13 @@ benchmark-backbone combinations. Controlled policy shifts demonstrate how
 consistency requirements, receiver information, and action changes interact.
 Residual-triggered refresh retains 98 percent of continual-refresh sender value
 using 31 percent of its remeasurement queries. These results connect receiver
-measurement, sender learning, and adaptation. Code is available at
-<https://anonymous.4open.science/r/CR-2727/>.
+measurement, sender learning, and adaptation.
 
 ![Measured-receiver persuasion](assets/figures/overview.png)
 
 ## Installation
 
-Use Python 3.10 or later and a PyTorch build compatible with the execution
-hardware.
+Use Python 3.10 or later and install PyTorch for your system.
 
 ```bash
 python -m venv .venv
@@ -36,47 +34,26 @@ python -m pip install -e '.[models,data,test]' \
 export HF_ENDPOINT=https://hf-mirror.com
 ```
 
-## Input preparation
+## Data preparation
 
-Fetch the pinned benchmark sources and install their released dependencies.
+Download the benchmark sources:
 
 ```bash
 python -m cr fetch --output external
 ```
 
-Prepare native records with the actual field mappings in a schema file. The
-[input guide](docs/execution.md) defines message text, context, proposition
-identifiers, state labels, and the prior.
+Follow the [data guide](docs/execution.md#resource-records) to create a schema for
+the downloaded records, then prepare the messages and game:
 
 ```bash
 python -m cr prepare --records data/released.jsonl --schema data/schema.yaml \
   --resource EoBench --output data/prepared
 ```
 
-Preparation writes the game, messages, context groups, and normalized resource
-schema. Benchmark-specific evaluator configurations are in
-[configs/native/](configs/native).
+## Training
 
-## Receiver measurement and sender adaptation
-
-Measure the receiver on a prepared message pool.
-
-```bash
-python -m cr measure --game data/prepared/game.json \
-  --messages data/prepared/messages.json --output results/measured
-```
-
-Single-context measurements produce `channel.json`. Multiple contexts retain
-separate measured channels and a group manifest. Recorded channels can be
-analyzed on CPU.
-
-```bash
-python -m cr solve --channel results/measured/channel.json \
-  --output results/solution.json
-```
-
-The sender program returns an implementing policy and primal–dual certificate.
-Train the dual-guided sender with fresh receiver measurements.
+Choose the sender and receiver models in [configs/paper.yaml](configs/paper.yaml).
+Run sender training with dual-guided rewards:
 
 ```bash
 python -m cr run --game data/prepared/game.json \
@@ -84,14 +61,13 @@ python -m cr run --game data/prepared/game.json \
   --method dual_guided --output results/dual_guided
 ```
 
-Updates use context-specific dual prices. The consistency residual determines
-receiver refresh, while independent confirmation and final measurements retain
-their separate query charges. An exhausted measurement budget records
-`additional_measurement_required`.
+To measure a message pool and solve its sender problem separately, use the
+`measure` and `solve` commands described in the [execution guide](docs/execution.md).
 
 ## Evaluation
 
-Evaluate a grouped policy through the configured native benchmark interface.
+Configure the evaluator for your benchmark using
+[configs/native/](configs/native), then evaluate the learned policy:
 
 ```bash
 python -m cr native-evaluate --game data/prepared/game.json \
@@ -99,48 +75,14 @@ python -m cr native-evaluate --game data/prepared/game.json \
   --policy results/dual_guided/group_policies.json --output results/native.json
 ```
 
-For single-context policies, supply the measured messages as described in the
-[execution guide](docs/execution.md#native-evaluation). Native metric records
-preserve the benchmark's denominator and units.
+The [evaluation guide](docs/execution.md#native-evaluation) covers evaluator setup,
+single-context policies, and result aggregation.
 
-| Resource | Native metric |
-| --- | --- |
-| EoBench | Context-following rate |
-| DuET-PD | Misleading flip rate at turn three |
-| PMIYC | Mean final agreement |
-| SYCON-Bench | Debate number of flip |
-| RebuttalBench | Rebuttal-RM score |
-
-`native-summary` aggregates recorded native grades. `movement` computes
-posterior adjustment and action-preservation diagnostics from a measured
-channel. Command-specific options are available through `python -m cr COMMAND
---help`.
-
-## Configuration
-
-[configs/paper.yaml](configs/paper.yaml) and
-[configs/ablations.yaml](configs/ablations.yaml) specify model and procedure
-settings.
-
-| Setting | Value |
-| --- | --- |
-| Senders | Qwen3-8B, Llama-3.1-8B-Instruct, Gemma-3-12B-it |
-| Receiver | Llama-3.1-8B-Instruct |
-| LoRA | Rank 16, scale 32 |
-| Learning rate | 2e-5 |
-| Adaptation | 4 rounds, 2 optimizer steps per round |
-| Query budget | 20,000 raw receiver requests |
-| Confirmation / final repeats | 4 / 8 |
-| Evaluation seeds | 0–4 |
-
-## Software checks
+## Tests
 
 ```bash
-CUDA_VISIBLE_DEVICES='' python -m pytest -q
+python -m pytest -q
 ```
-
-The CPU suite checks linear-program certificates, posterior movement, adaptive
-refresh, policy gradients, native metrics, and query accounting.
 
 ## License
 
