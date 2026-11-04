@@ -25,9 +25,11 @@ training:
   rollout_batch: 8
   gradient_accumulation: 2
   group_size: 8
+  # Supplement Table S8 specifies two sender updates per expansion round.
   updates_per_round: 2
   total_optimizer_steps: 8
   activation_checkpointing: true
+  # Unspecified clipping, KL, and advantage constants follow TRL v0.17.0.
   clip: 0.2
   kl_weight: 0.04
   advantage_epsilon: 1.0e-4

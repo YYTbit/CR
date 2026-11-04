@@ -1,28 +1,43 @@
 from contextlib import contextmanager
 
-import torch
 from torch import nn
-from torch.nn import functional
+from peft.tuners.lora.layer import Linear
 
 
 class LoRALinear(nn.Module):
+    """PEFT projection with the sender archive's matrix accessors."""
+
     def __init__(self, base, rank=16, scale=32.0):
         super().__init__()
         if not isinstance(base, nn.Linear) or isinstance(rank, bool) or int(rank) != rank or rank < 1 or scale <= 0:
             raise ValueError("LoRA projection has a linear base, positive rank, and positive scale")
-        self.base = base
-        self.base.requires_grad_(False)
+        base.requires_grad_(False)
         self.rank, self.scale = int(rank), float(scale)
-        self.lora_A = nn.Parameter(base.weight.new_empty((rank, base.in_features)))
-        self.lora_B = nn.Parameter(base.weight.new_zeros((base.out_features, rank)))
-        nn.init.kaiming_uniform_(self.lora_A, a=5 ** 0.5)
-        self.enabled = True
+        self.layer = Linear(base, adapter_name="default", r=self.rank, lora_alpha=self.scale,
+                            lora_dropout=0.0, init_lora_weights=True, lora_bias=False)
+
+    @property
+    def base(self):
+        return self.layer.get_base_layer()
+
+    @property
+    def lora_A(self):
+        return self.layer.lora_A["default"].weight
+
+    @property
+    def lora_B(self):
+        return self.layer.lora_B["default"].weight
+
+    @property
+    def enabled(self):
+        return not self.layer.disable_adapters
+
+    @enabled.setter
+    def enabled(self, value):
+        self.layer.enable_adapters(bool(value))
 
     def forward(self, inputs):
-        output = self.base(inputs)
-        if self.enabled:
-            output = output + self.scale / self.rank * functional.linear(functional.linear(inputs, self.lora_A), self.lora_B)
-        return output
+        return self.layer(inputs)
 
 
 def install_lora(model, rank=16, scale=32.0):

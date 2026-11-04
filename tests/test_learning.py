@@ -14,6 +14,9 @@ def test_dual_reward_has_negative_price_sign_and_group_offsets_cancel():
     assert acquisition_reward(instance, [.2, .8], 2, prices) == pytest.approx(-.8)
     rewards = np.array([1.0, .7, -.2, .4])
     np.testing.assert_allclose(group_advantages(rewards), group_advantages(rewards - 20), atol=1e-12)
+    reference = torch.tensor(rewards)
+    expected = (reference - reference.mean()) / (reference.std() + 1e-4)
+    np.testing.assert_allclose(group_advantages(rewards), expected.numpy())
     np.testing.assert_array_equal(group_advantages([1, 1, 1, 1]), [0, 0, 0, 0])
 
 

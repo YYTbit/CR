@@ -24,7 +24,8 @@ def group_advantages(rewards, epsilon=1e-4):
     rewards = np.asarray(rewards, dtype=float)
     if rewards.ndim != 1 or len(rewards) < 2 or not np.isfinite(rewards).all() or epsilon <= 0:
         raise ValueError("Group-relative rewards have at least two finite samples")
-    return (rewards - rewards.mean()) / (rewards.std(ddof=0) + epsilon)
+    # Match the sample-standard-deviation convention of the reference GRPO implementation.
+    return (rewards - rewards.mean()) / (rewards.std(ddof=1) + epsilon)
 
 
 def grpo_loss(current, preceding, reference, advantage, clip=0.2, kl_weight=0.04):
