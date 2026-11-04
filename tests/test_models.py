@@ -27,21 +27,23 @@ class TokenizerFixture:
         return {"token" + str(index): index for index in range(32)}
 
 
-def model_config(kind):
+def model_config(kind, attention=None):
     common = {"vocab_size": 32, "hidden_size": 8, "intermediate_size": 12,
               "num_hidden_layers": 1, "num_attention_heads": 2, "num_key_value_heads": 1,
               "max_position_embeddings": 64, "head_dim": 4,
               "bos_token_id": 1, "eos_token_id": 2, "pad_token_id": 0}
     classes = {"qwen3": Qwen3Config, "llama": LlamaConfig, "gemma3": Gemma3TextConfig}
     config = classes[kind](**common)
-    config._attn_implementation = "eager"
+    if attention is not None:
+        config._attn_implementation = attention
     return config
 
 
 @pytest.mark.parametrize("kind", ["qwen3", "llama", "gemma3"])
-def test_completion_likelihood_matches_full_teacher_forcing_and_adapter_roundtrip(kind, tmp_path):
+@pytest.mark.parametrize("attention", [None, "eager"])
+def test_completion_likelihood_matches_full_teacher_forcing_and_adapter_roundtrip(kind, attention, tmp_path):
     torch.manual_seed(7)
-    model = AutoModelForCausalLM.from_config(model_config(kind))
+    model = AutoModelForCausalLM.from_config(model_config(kind, attention))
     backend = CausalBackend(model, TokenizerFixture(), "software_fixture", max_input_tokens=32, max_completion_tokens=2)
     completion = Completion((1, 3, 4), (5, 6, 2), "fixture", 0)
     sequence = torch.tensor([completion.input_ids + completion.completion_ids])

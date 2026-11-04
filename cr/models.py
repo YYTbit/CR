@@ -43,7 +43,7 @@ class CausalBackend:
         configuration = AutoConfig.from_pretrained(checkpoint, revision=revision)
         model_class = AutoModelForImageTextToText if configuration.model_type == "gemma3" else AutoModelForCausalLM
         model = model_class.from_pretrained(checkpoint, revision=revision, device_map=device_map,
-                                            torch_dtype=getattr(torch, dtype), attn_implementation="eager")
+                                            torch_dtype=getattr(torch, dtype))
         if any(parameter.is_meta for parameter in model.parameters()):
             raise ValueError("Sender updates require resident model tensors")
         tokenizer = AutoTokenizer.from_pretrained(checkpoint, revision=revision)
