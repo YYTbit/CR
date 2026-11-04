@@ -29,7 +29,7 @@ Use Python 3.10 or later and install PyTorch for your system.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[models,data,test]' \
+python -m pip install -e '.[models,data]' \
   --index-url https://pypi.tuna.tsinghua.edu.cn/simple
 export HF_ENDPOINT=https://hf-mirror.com
 ```
@@ -77,12 +77,6 @@ python -m cr native-evaluate --game data/prepared/game.json \
 
 The [evaluation guide](docs/execution.md#native-evaluation) covers evaluator setup,
 single-context policies, and result aggregation.
-
-## Tests
-
-```bash
-python -m pytest -q
-```
 
 ## License
 
