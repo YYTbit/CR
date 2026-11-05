@@ -20,7 +20,19 @@ Residual-triggered refresh retains 98 percent of continual-refresh sender value
 using 31 percent of its remeasurement queries. These results connect receiver
 measurement, sender learning, and adaptation.
 
+## Method
+
+To optimize communication while maintaining a current receiver model, we combine exact finite-pool optimization with message acquisition. First, a compatible sender program defines the acquisition objective. Next, its dual prices guide generator training. Finally, the consistency analysis quantifies the adjustment associated with a proposed policy change and motivates receiver remeasurement.
+
 ![Measured-receiver persuasion](assets/figures/overview.png)
+
+**Figure 1.** Measured-receiver persuasion. Beliefs and actions define the sender program; training and remeasurement update its policy. The illustrated channel has a positive classical-to-measured gap, distinct from the sender optimization gap.
+
+## Main Results
+
+**Table 1.** Main results on five public benchmarks, with mean and standard deviation over five seeds. Columns report EoBench context following, DuET-PD misleading-persuasion flips (percent), PMIYC raw final agreement (five-point scale), SYCON stance flips (five turns), and Rebuttal-RM scores (ten-point scale). Optimized senders share interaction budgets.
+
+![Main results from Table 1](assets/figures/main_results.png)
 
 ## Installation
 
@@ -60,9 +72,6 @@ python -m cr run --game data/prepared/game.json \
   --messages data/prepared/messages.json --sender Qwen3 \
   --method dual_guided --output results/dual_guided
 ```
-
-To measure a message pool and solve its sender problem separately, use the
-`measure` and `solve` commands described in the [execution guide](docs/execution.md).
 
 ## Evaluation
 
