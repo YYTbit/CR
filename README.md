@@ -38,21 +38,9 @@ To optimize communication while maintaining a current receiver model, we combine
 
 ![Main results from Table 1](assets/figures/main_results.png)
 
-### Ablation Study
+**Dual-guided acquisition increases receiver-response scores across all fifteen combinations.** On Qwen3, its scores exceed Payoff-Guided by 0.026 on EoBench, 1.0 percentage point on DuET-PD, 0.24 on PMIYC, 0.22 stance flips on SYCON, and 0.56 on Rebuttal. The dual score favors candidates that improve the compatible mixture, connecting acquisition to the final information structure. The matched training configuration identifies the objective as the principal intervention, supporting the use of consistency prices in acquisition.
 
-**Table 2.** Component ablations across three sender backbones under shared interaction budgets. Values are mean and standard deviation over five seeds, with the metrics of Table 1. Each variant changes the component defined in the text.
-
-![Component ablations from Table 2](assets/figures/ablations.png)
-
-**Action measurement and independent confirmation contribute to acquisition quality.** Posterior Value decreases PMIYC from 3.94 to 3.47 and Rebuttal from 9.51 to 8.36. Its best-response objective assumes decisions follow reported beliefs; action measurement records actual decisions. Shared Measurement reaches 3.61 and 8.55, respectively. Independent confirmation evaluates candidates on new receiver samples, reducing selection effects from the acquisition batch.
-
-### Analysis
-
-![Analysis from Figure 2](assets/figures/analysis.png)
-
-**Figure 2.** Theory and empirical behavior. (a) Predicted and realized utility. (b) Observed movement against the consistency-restoration minimum. (c) Movement as policy mass shifts. (d) Share of runs with action changes.
-
-**Posterior drift and action changes occur at different stages.** Figure 2(d) records zero action changes across five seeds at transferred mass 0.06 and five at 0.14 in every core setting. At 0.10, counts are one, zero, and four for EoBench, DuET-PD, and PMIYC. The capacity interpretation applies when measured actions are best responses within their posterior intervals. The observed variation supports measuring decisions together with reported beliefs.
+**Training provides gains beyond payoff-ranked sampling.** For Qwen3, Best-of-N Payoff reaches 0.498 on EoBench and 2.35 on SYCON, against 0.550 and 2.64 for Payoff-Guided and 0.576 and 2.86 for Dual-Guided MR, and Rebuttal runs the same progression from 8.46 to 8.95 and 9.51. Sampling finds useful existing candidates, training moves the proposal distribution, and dual guidance prices their contribution to the jointly feasible mixture.
 
 ## Getting Started
 
