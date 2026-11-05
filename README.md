@@ -37,13 +37,23 @@ To optimize communication while maintaining a current receiver model, we combine
 
 ## Results
 
+### Main Results
+
 **Table 1.** Main results on five public benchmarks, with mean and standard deviation over five seeds. Columns report EoBench context following, DuET-PD misleading-persuasion flips (percent), PMIYC raw final agreement (five-point scale), SYCON stance flips (five turns), and Rebuttal-RM scores (ten-point scale). Optimized senders share interaction budgets.
 
 ![Main results from Table 1](assets/figures/main_results.png)
 
-**Dual-guided acquisition increases receiver-response scores across all fifteen combinations.** On Qwen3, its scores exceed Payoff-Guided by 0.026 on EoBench, 1.0 percentage point on DuET-PD, 0.24 on PMIYC, 0.22 stance flips on SYCON, and 0.56 on Rebuttal. The dual score favors candidates that improve the compatible mixture, connecting acquisition to the final information structure. The matched training configuration identifies the objective as the principal intervention, supporting the use of consistency prices in acquisition.
+### Ablation Study
 
-**The improvement persists across sender families.** The EoBench gains over Payoff-Guided are 0.026, 0.025, and 0.024 for Qwen3, Llama3, and Gemma3. Corresponding PMIYC gains are 0.24, 0.22, and 0.23, and SYCON gains are 0.22, 0.21, and 0.24. This agreement across model families supports measured state prices as a common acquisition signal, while the magnitude of the gain varies with the backbone and the response protocol.
+**Table 2.** Component ablations across three sender backbones under shared interaction budgets. Values are mean and standard deviation over five seeds, with the metrics of Table 1. Each variant changes the component defined in the text.
+
+![Component ablations from Table 2](assets/figures/ablations.png)
+
+### Analysis
+
+![Analysis from Figure 2](assets/figures/analysis.png)
+
+**Figure 2.** Theory and empirical behavior. (a) Predicted and realized utility. (b) Observed movement against the consistency-restoration minimum. (c) Movement as policy mass shifts. (d) Share of runs with action changes.
 
 ## Getting Started
 
@@ -67,8 +77,8 @@ Download the benchmark sources:
 python -m cr fetch --output external
 ```
 
-Follow the [data guide](docs/execution.md#resource-records) to create a schema for
-the downloaded records, then prepare the messages and game:
+Map the downloaded record fields in `data/schema.yaml`, using the
+[record format](docs/execution.md#resource-records). Prepare the messages and game:
 
 ```bash
 python -m cr prepare --records data/released.jsonl --schema data/schema.yaml \
@@ -77,7 +87,7 @@ python -m cr prepare --records data/released.jsonl --schema data/schema.yaml \
 
 ### Training and Evaluation
 
-Choose the sender and receiver models in [configs/paper.yaml](configs/paper.yaml).
+Set the sender and receiver models in `configs/paper.yaml`.
 Run sender training with dual-guided rewards:
 
 ```bash
@@ -86,7 +96,7 @@ python -m cr run --game data/prepared/game.json \
   --method dual_guided --output results/dual_guided
 ```
 
-Configure the evaluator using [configs/native/](configs/native), then evaluate
+Set the official benchmark evaluator in `data/evaluator.yaml`, then evaluate
 the learned policy:
 
 ```bash
