@@ -24,16 +24,11 @@ measurement, sender learning, and adaptation.
 
 To optimize communication while maintaining a current receiver model, we combine exact finite-pool optimization with message acquisition.
 
-1. Measure posteriors and action responses on the initial pool. Expand the pool until feasible or the budget ends.
-2. If the measured pool is feasible, solve the primal and dual programs and update the generator using the dual-guided objective in each acquisition round while queries remain.
-3. Generate and independently confirm candidates. Add candidates whose confirmed reduced cost exceeds the admission threshold.
-4. Compute the marginal from the proposed policy. If the L1 norm of its posterior-consistency residual exceeds the refresh threshold or the receiver checkpoint changes, refresh measurements and resolve the program.
-5. Independently measure the final pool and solve for the message marginal.
-6. Return the reconstructed policy if the final measured pool is feasible; otherwise return additional measurement required.
-
 ![Measured-receiver persuasion](assets/figures/overview.png)
 
 **Figure 1.** Measured-receiver persuasion. Beliefs and actions define the sender program; training and remeasurement update its policy. The illustrated channel has a positive classical-to-measured gap, distinct from the sender optimization gap.
+
+![Algorithm 1](assets/figures/algorithm.png)
 
 ## Results
 
@@ -49,24 +44,24 @@ To optimize communication while maintaining a current receiver model, we combine
 
 ![Component ablations from Table 2](assets/figures/ablations.png)
 
+**Action measurement and independent confirmation contribute to acquisition quality.** Posterior Value decreases PMIYC from 3.94 to 3.47 and Rebuttal from 9.51 to 8.36. Its best-response objective assumes decisions follow reported beliefs; action measurement records actual decisions. Shared Measurement reaches 3.61 and 8.55, respectively. Independent confirmation evaluates candidates on new receiver samples, reducing selection effects from the acquisition batch.
+
 ### Analysis
 
 ![Analysis from Figure 2](assets/figures/analysis.png)
 
 **Figure 2.** Theory and empirical behavior. (a) Predicted and realized utility. (b) Observed movement against the consistency-restoration minimum. (c) Movement as policy mass shifts. (d) Share of runs with action changes.
 
+**Posterior drift and action changes occur at different stages.** Figure 2(d) records zero action changes across five seeds at transferred mass 0.06 and five at 0.14 in every core setting. At 0.10, counts are one, zero, and four for EoBench, DuET-PD, and PMIYC. The capacity interpretation applies when measured actions are best responses within their posterior intervals. The observed variation supports measuring decisions together with reported beliefs.
+
 ## Getting Started
 
 ### Environment Setup
 
-Use Python 3.10 or later and install PyTorch for your system.
-
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e '.[models,data]' \
-  --index-url https://pypi.tuna.tsinghua.edu.cn/simple
-export HF_ENDPOINT=https://hf-mirror.com
+conda create -n cr python=3.10 -y
+conda activate cr
+pip install -e '.[models,data]'
 ```
 
 ### Data Preparation
@@ -85,7 +80,7 @@ python -m cr prepare --records data/released.jsonl --schema data/schema.yaml \
   --resource EoBench --output data/prepared
 ```
 
-### Training and Evaluation
+## Training
 
 Set the sender and receiver models in `configs/paper.yaml`.
 Run sender training with dual-guided rewards:
@@ -95,6 +90,8 @@ python -m cr run --game data/prepared/game.json \
   --messages data/prepared/messages.json --sender Qwen3 \
   --method dual_guided --output results/dual_guided
 ```
+
+## Evaluation
 
 Set the official benchmark evaluator in `data/evaluator.yaml`, then evaluate
 the learned policy:
