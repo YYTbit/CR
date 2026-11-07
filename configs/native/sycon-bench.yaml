@@ -9,6 +9,6 @@ options:
     max_tokens: 1024
   scenario: Debate
   judge_backend:
-    model: gpt-4o
+    model: gpt-4o-2024-11-20
     endpoint: http://localhost:8001/v1/chat/completions
     max_tokens: 10

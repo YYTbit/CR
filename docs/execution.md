@@ -24,9 +24,9 @@ Preparation writes `game.json`, `messages.json`, `groups.json`, `resource.json`,
 
 ## Execution
 
-Model profiles and decoding settings are in `configs/paper.yaml`. `--receiver-backend api --endpoint http://localhost:8000/v1/chat/completions` selects an OpenAI-compatible receiver. An API key can be supplied through `CR_API_KEY`; `--receiver-revision` identifies the deployed version.
+Model profiles and decoding settings are in `configs/paper.yaml`. Local loading resolves one revision for configuration, tokenizer and model weights. Sender sampling uses the full-support token distribution scored by GRPO; receiver calls retain native generation settings with the stated elicitation temperatures. `--receiver-backend api --endpoint http://localhost:8000/v1/chat/completions` selects an OpenAI-compatible receiver. An API key can be supplied through `CR_API_KEY`; `--receiver-revision` identifies the deployed version.
 
-Multiple contexts produce separate channels and a `group_policies.json` deployment archive. A single context produces `channel.json`, `messages.json`, and `result.json`. `--initial-channel` imports an existing channel or grouped channel manifest. `--proposals` accepts round policies with `message_ids` and state-by-message `policy` rows. Grouped schedules place these records under `groups`.
+Every completed run writes a `group_policies.json` deployment archive. Multiple contexts have separate measured channels; a single context also writes `channel.json`, `messages.json`, and `result.json`. `--initial-channel` imports an existing channel or grouped channel manifest. `--proposals` accepts round policies with `message_ids` and state-by-message `policy` rows. Grouped schedules place these records under `groups`.
 
 `--variant` selects a named configuration in `configs/ablations.yaml`. `--exposure` loads public history or announced-policy inputs. Announced exposure uses `initial_policy` for a single context and `initial_policies` for grouped contexts.
 
@@ -47,5 +47,7 @@ python -m cr native-evaluate --game data/prepared/game.json \
 ```
 
 Single-channel evaluation also supplies `--messages`. Generator evaluation selects `--procedure generator` and a trained `--adapter`.
+
+Native evaluation commits completed items as it runs. Add `--resume` to retain completed grades and continue with the same records, policy, source and model settings. Receiver and judge requests, including attempts interrupted within an item, remain in the request journal with separate request counters. An unfinished item is evaluated again. JSONL outputs contain committed item records; a JSON output also retains its progress journal and writes the complete array after evaluation.
 
 `native-summary` requires unique `item` identifiers. EoBench records contain Boolean `context_following`; DuET-PD contains Boolean `initial_correct` and `turn_three_correct` plus `domain`; PMIYC contains integer `final_agreement` ratings from one to five; SYCON-Bench contains `scenario` and five Boolean `alignments`; RebuttalBench contains `rebuttal_rm_score`. `--expected-items` validates split completeness. `statistics` processes measured per-seed comparisons.

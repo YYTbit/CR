@@ -1,5 +1,7 @@
 import inspect
 import json
+import copy
+import importlib.metadata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,7 +13,7 @@ from .messages import Message, common_context
 from .evaluation import sender_state
 from .program import validate_policy
 from .prompts import sender_prompt
-from .storage import signature
+from .storage import signature, file_digest, write_npz
 
 
 @dataclass(frozen=True)
@@ -36,25 +38,59 @@ class CausalBackend:
         self.version = 0
         self.model.eval()
         self.model.requires_grad_(False)
+        vocabulary = self.tokenizer.get_vocab()
+        kind = getattr(self.model.config, "model_type", "")
+        marker = {"qwen3": "<|im_end|>", "llama": "<|eot_id|>",
+                  "gemma3": "<end_of_turn>", "gemma3_text": "<end_of_turn>"}.get(kind)
+        end = getattr(self.tokenizer, "eos_token_id", None)
+        if end is None:
+            end = model.generation_config.eos_token_id
+            end = end[0] if isinstance(end, list) else end
+        self.end_token_id = vocabulary.get(marker, end)
+        self._tokenizer_identity = {"vocabulary": signature(vocabulary),
+                                    "chat_template": signature(getattr(tokenizer, "chat_template", None)),
+                                    "special_tokens": signature(getattr(tokenizer, "special_tokens_map", {}))}
+        if hasattr(tokenizer, "backend_tokenizer"):
+            self._tokenizer_identity["backend"] = signature(tokenizer.backend_tokenizer.to_str())
+        self._base_identity = {"configuration": signature(model.config.to_dict()),
+                               "generation": signature(model.generation_config.to_dict()),
+                               "tokenizer": self._tokenizer_identity,
+                               "libraries": {name: importlib.metadata.version(name) for name in ("torch", "transformers", "peft")}}
+        if revision is None:
+            files = sorted(Path(checkpoint).glob("*.safetensors")) or sorted(Path(checkpoint).glob("pytorch_model*.bin"))
+            if files:
+                self._base_identity["weights"] = signature({path.name: file_digest(path) for path in files})
+            else:
+                import hashlib
+
+                checksum = hashlib.sha256()
+                for name, parameter in model.named_parameters():
+                    checksum.update(str((name, tuple(parameter.shape), parameter.dtype)).encode())
+                    for block in parameter.detach().reshape(-1).split(1048576):
+                        checksum.update(block.cpu().contiguous().view(torch.uint8).numpy().tobytes())
+                self._base_identity["weights"] = checksum.hexdigest()
 
     @classmethod
     def from_pretrained(cls, checkpoint, revision=None, device_map="auto", dtype="bfloat16", **options):
         from transformers import AutoConfig, AutoModelForCausalLM, AutoModelForImageTextToText, AutoTokenizer
         configuration = AutoConfig.from_pretrained(checkpoint, revision=revision)
+        resolved = getattr(configuration, "_commit_hash", None) or revision
+        if resolved is None and not Path(checkpoint).is_dir():
+            raise ValueError("The model repository must resolve to an immutable revision")
         model_class = AutoModelForImageTextToText if configuration.model_type == "gemma3" else AutoModelForCausalLM
-        model = model_class.from_pretrained(checkpoint, revision=revision, device_map=device_map,
+        model = model_class.from_pretrained(checkpoint, config=configuration, revision=resolved, device_map=device_map,
                                             torch_dtype=getattr(torch, dtype))
         if any(parameter.is_meta for parameter in model.parameters()):
             raise ValueError("Sender updates require resident model tensors")
-        tokenizer = AutoTokenizer.from_pretrained(checkpoint, revision=revision)
-        resolved = getattr(model.config, "_commit_hash", None) or revision
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint, revision=resolved)
         return cls(model, tokenizer, checkpoint, resolved, **options)
 
     @property
     def identity(self):
         return {"kind": "local_causal", "checkpoint": self.checkpoint, "revision": self.revision,
                 "version": self.version, "max_input_tokens": self.max_input_tokens,
-                "max_completion_tokens": self.max_completion_tokens, "enable_thinking": self.enable_thinking}
+                "max_completion_tokens": self.max_completion_tokens, "enable_thinking": self.enable_thinking,
+                "end_token_id": self.end_token_id, "base": self._base_identity, "policy_protocol": 2}
 
     def encode(self, messages):
         messages = list(messages)
@@ -77,11 +113,30 @@ class CausalBackend:
     def device(self):
         return self.model.get_input_embeddings().weight.device
 
-    def sample(self, messages, temperature=1.0, seed=0, max_tokens=None):
+    def sample(self, messages, temperature=1.0, seed=0, max_tokens=None, policy_sampling=True):
         if not np.isfinite(temperature) or temperature < 0:
             raise ValueError("Generation temperature is finite and nonnegative")
         prompt = self.encode(messages)
         identifiers = torch.tensor([prompt], dtype=torch.long, device=self.device)
+        cap = self.max_completion_tokens if max_tokens is None else int(max_tokens)
+        if cap < 1:
+            raise ValueError("Generation requires a positive completion-token budget")
+        generation = copy.deepcopy(self.model.generation_config)
+        generation.do_sample = temperature > 0
+        if temperature > 0:
+            generation.temperature = temperature
+        if policy_sampling:
+            from transformers import GenerationConfig
+
+            # The GRPO replay likelihood uses the same full-support token policy.
+            native = self.model.generation_config
+            generation = GenerationConfig(do_sample=temperature > 0, temperature=temperature if temperature > 0 else 1.0,
+                                           top_p=1.0, top_k=0, bos_token_id=native.bos_token_id,
+                                           eos_token_id=native.eos_token_id, pad_token_id=native.pad_token_id,
+                                           return_dict_in_generate=native.return_dict_in_generate,
+                                           output_scores=native.output_scores)
+        if self.tokenizer.pad_token_id is not None:
+            generation.pad_token_id = self.tokenizer.pad_token_id
         devices = sorted({parameter.device.index for parameter in self.model.parameters() if parameter.device.type == "cuda"})
         training = self.model.training
         self.model.eval()
@@ -91,15 +146,11 @@ class CausalBackend:
                 for device in devices:
                     with torch.cuda.device(device):
                         torch.cuda.manual_seed(seed)
-                options = {"input_ids": identifiers, "attention_mask": torch.ones_like(identifiers),
-                           "max_new_tokens": int(max_tokens or self.max_completion_tokens),
-                           "do_sample": temperature > 0, "use_cache": True, "num_beams": 1,
-                           "repetition_penalty": 1.0}
-                if temperature > 0:
-                    options.update(temperature=temperature, top_p=1.0, top_k=0)
-                if self.tokenizer.pad_token_id is not None:
-                    options["pad_token_id"] = self.tokenizer.pad_token_id
-                output = self.model.generate(**options)[0, len(prompt):].tolist()
+                outputs = self.model.generate(input_ids=identifiers, attention_mask=torch.ones_like(identifiers),
+                                              generation_config=generation, use_model_defaults=False,
+                                              max_new_tokens=cap, use_cache=True)
+                sequences = outputs.sequences if hasattr(outputs, "sequences") else outputs
+                output = sequences[0, len(prompt):].tolist()
         finally:
             self.model.train(training)
         if not output:
@@ -108,7 +159,7 @@ class CausalBackend:
         return Completion(prompt, tuple(output), text, int(seed))
 
     def complete(self, messages, temperature=0.0, seed=0, max_tokens=None):
-        completion = self.sample(messages, temperature, seed, max_tokens)
+        completion = self.sample(messages, temperature, seed, max_tokens, policy_sampling=False)
         return {"text": completion.text, "usage": {"prompt_tokens": len(completion.input_ids),
                                                      "completion_tokens": len(completion.completion_ids)}}
 
@@ -157,32 +208,41 @@ class CausalBackend:
         for index, (name, module) in enumerate(sorted(self.adapters.items())):
             arrays["A_" + str(index)] = module.lora_A.detach().float().cpu().numpy()
             arrays["B_" + str(index)] = module.lora_B.detach().float().cpu().numpy()
-        metadata = {"format": "cr_lora_v1", "backend": self.identity,
+        metadata = {"format": "cr_lora_v2", "backend": self.identity,
                     "blocks": list(sorted(self.adapters)), "rank": next(iter(self.adapters.values())).rank,
                     "scale": next(iter(self.adapters.values())).scale,
                     "vocabulary_sha256": signature(self.tokenizer.get_vocab())}
-        np.savez_compressed(path, **arrays, metadata=np.asarray(json.dumps(metadata)))
+        write_npz(path, **arrays, metadata=np.asarray(json.dumps(metadata, allow_nan=False)))
 
     def load_adapter(self, source):
         with np.load(source, allow_pickle=False) as archive:
             metadata = json.loads(str(archive["metadata"].item()))
-            if metadata.get("format") != "cr_lora_v1" or metadata["backend"]["checkpoint"] != self.checkpoint:
+            if metadata.get("format") not in {"cr_lora_v1", "cr_lora_v2"} or metadata["backend"]["checkpoint"] != self.checkpoint:
                 raise ValueError("Sender adapter has a different format or base checkpoint")
             if metadata["backend"].get("revision") != self.revision:
                 raise ValueError("Sender adapter has a different checkpoint revision")
             if metadata["vocabulary_sha256"] != signature(self.tokenizer.get_vocab()):
                 raise ValueError("Sender adapter has a different entry vocabulary")
+            if metadata["format"] == "cr_lora_v2":
+                stable = ("configuration", "tokenizer", "weights")
+                if any(metadata["backend"]["base"].get(key) != self._base_identity.get(key) for key in stable):
+                    raise ValueError("Sender adapter has a different base model, vocabulary or chat template")
             if not self.adapters:
                 self.enable_lora(metadata["rank"], metadata["scale"])
             if sorted(self.adapters) != metadata["blocks"]:
                 raise ValueError("Sender adapter has a different attention block set")
+            if any(module.rank != metadata["rank"] or module.scale != metadata["scale"] for module in self.adapters.values()):
+                raise ValueError("Sender adapter has a different rank or scale")
+            values = []
+            for index, (name, module) in enumerate(sorted(self.adapters.items())):
+                for prefix, parameter in (("A_", module.lora_A), ("B_", module.lora_B)):
+                    array = archive[prefix + str(index)]
+                    if array.shape != tuple(parameter.shape) or not np.isfinite(array).all():
+                        raise ValueError("Sender adapter contains invalid parameter arrays")
+                    values.append((parameter, array.copy()))
             with torch.no_grad():
-                for index, (name, module) in enumerate(sorted(self.adapters.items())):
-                    for prefix, parameter in (("A_", module.lora_A), ("B_", module.lora_B)):
-                        array = archive[prefix + str(index)]
-                        if array.shape != tuple(parameter.shape) or not np.isfinite(array).all():
-                            raise ValueError("Sender adapter contains invalid parameter arrays")
-                        parameter.copy_(torch.tensor(array, device=parameter.device, dtype=parameter.dtype))
+                for parameter, array in values:
+                    parameter.copy_(torch.tensor(array, device=parameter.device, dtype=parameter.dtype))
             self.version = int(metadata["backend"]["version"])
 
     def close(self):
@@ -216,7 +276,7 @@ class LanguageGenerator:
 
     def proposed_policy(self, messages):
         context, proposition = common_context(messages)
-        eos = self.backend.tokenizer.eos_token_id
+        eos = getattr(self.backend, "end_token_id", getattr(self.backend.tokenizer, "eos_token_id", None))
         if eos is None:
             raise ValueError("Finite-pool sequence scoring requires an explicit termination token")
         scores = np.empty((len(self.game.prior), len(messages)))

@@ -39,7 +39,8 @@ def create_receiver(args, config):
     if args.receiver_backend == "api":
         from .backends import ApiBackend
         return ApiBackend(checkpoint, revision, args.endpoint, timeout=config["protocol"]["timeout_seconds"],
-                          max_tokens=config["execution"]["max_completion_tokens"])
+                          max_tokens=config["execution"]["max_completion_tokens"],
+                          enable_thinking=config["execution"]["enable_thinking"])
     from .models import CausalBackend
     execution = config["execution"]
     return CausalBackend.from_pretrained(checkpoint, revision, args.device_map, execution["dtype"],
@@ -312,37 +313,10 @@ def main(argv=None):
     native.add_argument("--device-map", default="auto")
     native.add_argument("--seed", type=int, default=0)
     native.add_argument("--output", required=True)
+    native.add_argument("--resume", action="store_true")
     def native_command(args):
-        from .data import read_records
-        from .evaluation import GroupedMixtureSender, MixtureSender, evaluate_native, load_native_evaluator
-        configuration = read_config(args.evaluator)
-        game = read_game(args.game)
-        if args.procedure == "mixture":
-            if not args.policy:
-                raise ValueError("Native mixture evaluation requires the reconstructed policy")
-            policy = json.loads(Path(args.policy).read_text())
-            if isinstance(policy, dict) and policy.get("format") == "cr_group_policies_v1":
-                if policy["game"] != game.record():
-                    raise ValueError("Grouped native policies have a different game")
-                sender = GroupedMixtureSender(game, policy["groups"])
-            else:
-                if not args.messages:
-                    raise ValueError("Native single-channel evaluation requires its final message pool")
-                if isinstance(policy, dict):
-                    policy = policy["policy"]
-                sender = MixtureSender(game, read_messages(args.messages), policy)
-        else:
-            sender = create_generator(args, read_config(args.config), game)
-        evaluator = None
-        try:
-            evaluator = load_native_evaluator(configuration["factory"], configuration.get("options", {}))
-            rows = evaluate_native(evaluator, read_records(args.records), sender, game, args.seed)
-            write_json(args.output, rows)
-        finally:
-            if evaluator is not None and callable(getattr(evaluator, "close", None)):
-                evaluator.close()
-            if args.procedure == "generator":
-                sender.backend.close()
+        from .evaluation import run_native_evaluation
+        run_native_evaluation(args)
     native.set_defaults(function=native_command)
     native_summary_parser = commands.add_parser("native-summary")
     native_summary_parser.add_argument("--resource", choices=["EoBench", "DuET-PD", "PMIYC", "SYCON-Bench", "RebuttalBench"], required=True)

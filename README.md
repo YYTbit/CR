@@ -22,13 +22,19 @@ measurement, sender learning, and adaptation.
 
 ## Algorithm Flow
 
-To optimize communication while maintaining a current receiver model, we combine exact finite-pool optimization with message acquisition.
-
 ![Measured-receiver persuasion](assets/figures/overview.png)
 
 **Figure 1.** Measured-receiver persuasion. Beliefs and actions define the sender program; training and remeasurement update its policy. The illustrated channel has a positive classical-to-measured gap, distinct from the sender optimization gap.
 
 ![Algorithm 1](assets/figures/algorithm.png)
+
+To optimize communication while maintaining a current receiver model, we combine exact finite-pool optimization with message acquisition. First, a compatible sender program defines the acquisition objective. Next, its dual prices guide generator training. Finally, the consistency analysis quantifies the adjustment associated with a proposed policy change and motivates receiver remeasurement.
+
+1. **Measured sender optimization.** Measuring both quantities allows the sender objective to reflect the receiver’s observed decisions. Bayes plausibility identifies the message mixtures that admit a compatible signaling policy, yielding an exact finite linear program. The program separates the value available within the measured pool from the value attained by a particular sender.
+
+2. **Dual-guided policy learning.** Its dual prices then guide policy-gradient training toward messages that improve the jointly feasible mixture. The reduced cost evaluates payoff together with the value of the posterior mass needed to support it. Independent receiver samples confirm candidates before admission, after which the expanded program updates the mixture and dual prices.
+
+3. **Receiver remeasurement and deployment.** The cached residual measures consistency pressure before remeasurement; the residual difference gives a lower bound on observed drift after remeasurement. Monitoring the proposed marginal therefore precedes receiver refresh and final reconstruction. Independent final measurements supply the deployed policy. Finally, reconstructing the policy from its optimal mixture connects the acquisition objective to execution.
 
 ## Results
 
@@ -61,37 +67,58 @@ python -m cr fetch --output external
 ```
 
 Map the downloaded record fields in `data/schema.yaml`, using the
-[record format](docs/execution.md#resource-records). Prepare the messages and game:
+[record format](docs/execution.md#resource-records). Select the resource and its native evaluator:
+
+| Resource | Evaluator |
+| --- | --- |
+| EoBench | `configs/native/eobench.yaml` |
+| DuET-PD | `configs/native/duet-pd.yaml` |
+| PMIYC | `configs/native/pmiyc.yaml` |
+| SYCON-Bench | `configs/native/sycon-bench.yaml` |
+| RebuttalBench | `configs/native/rebuttalbench.yaml` |
+
+Prepare the messages and game for the selected resource:
 
 ```bash
+RESOURCE=EoBench
+EVALUATOR=configs/native/eobench.yaml
+
 python -m cr prepare --records data/released.jsonl --schema data/schema.yaml \
-  --resource EoBench --output data/prepared
+  --resource "$RESOURCE" --output data/prepared
 ```
 
 ## Training
 
-Set the sender and receiver models in `configs/paper.yaml`.
-Run sender training with dual-guided rewards:
+The sender profiles in `configs/paper.yaml` use
+[Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B),
+[Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct), and
+[Gemma-3-12B-it](https://huggingface.co/google/gemma-3-12b-it).
+Choose `SENDER=Qwen3`, `SENDER=Llama3`, or `SENDER=Gemma3`.
+The primary receiver is Llama-3.1-8B-Instruct. Run sender training with dual-guided rewards:
 
 ```bash
+SENDER=Qwen3
+
 python -m cr run --game data/prepared/game.json \
-  --messages data/prepared/messages.json --sender Qwen3 \
-  --method dual_guided --output results/dual_guided
+  --messages data/prepared/messages.json --sender "$SENDER" \
+  --method dual_guided --output results/"$RESOURCE"/"$SENDER"/dual_guided
 ```
 
 ## Evaluation
 
-Set the official benchmark evaluator in `data/evaluator.yaml`, then evaluate
-the learned policy:
+Set the endpoint, model and prepared schema path in the selected evaluator,
+then evaluate the learned policy with the benchmark's native protocol:
 
 ```bash
 python -m cr native-evaluate --game data/prepared/game.json \
-  --records data/evaluation.jsonl --evaluator data/evaluator.yaml \
-  --policy results/dual_guided/group_policies.json --output results/native.json
+  --records data/evaluation.jsonl --evaluator "$EVALUATOR" \
+  --policy results/"$RESOURCE"/"$SENDER"/dual_guided/group_policies.json \
+  --output results/"$RESOURCE"/"$SENDER"/native.jsonl
 ```
 
-The [evaluation guide](docs/execution.md#native-evaluation) covers evaluator setup,
-single-context policies, and result aggregation.
+Add `--resume` to continue a saved evaluation with the same inputs.
+The [evaluation guide](docs/execution.md#native-evaluation) covers evaluator setup
+and result aggregation.
 
 ## License
 

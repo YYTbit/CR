@@ -69,6 +69,8 @@ class NativeEvaluator:
         self.backend = ApiBackend(**backend) if isinstance(backend, dict) else backend
         self.seed, self.trace = int(seed), []
         self.source_hashes = {}
+        self.request_count = 0
+        self.request_recorder = None
 
     def functions(self, path, *args, **kwargs):
         file = self.source / path
@@ -93,8 +95,21 @@ class NativeEvaluator:
         return self.schema["positive_labels"][str(field(record, self.schema["state_label"]))]
 
     def complete(self, messages, max_tokens=256, temperature=0.0):
-        result = self.backend.complete(messages, temperature=temperature, seed=self.seed + len(self.trace),
-                                         max_tokens=max_tokens)
+        seed = self.seed + self.request_count
+        self.request_count += 1
+        request = {"call": self.request_count, "seed": seed, "messages": messages,
+                   "temperature": temperature, "max_tokens": max_tokens,
+                   "receiver": self.backend.identity, "resource": self.resource}
+        if self.request_recorder is not None:
+            self.request_recorder(dict(request, event="request_started"))
+        try:
+            result = self.backend.complete(messages, temperature=temperature, seed=seed, max_tokens=max_tokens)
+        except Exception as error:
+            if self.request_recorder is not None:
+                self.request_recorder(dict(request, event="request_failed", error_type=type(error).__name__))
+            raise
+        if self.request_recorder is not None:
+            self.request_recorder(dict(request, event="request_finished", response=result))
         if not isinstance(result.get("text"), str) or not result["text"].strip():
             raise ValueError("Native evaluation received an empty model response")
         self.trace.append({"messages": messages, "response": result["text"], "usage": result.get("usage", {}),

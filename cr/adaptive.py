@@ -341,6 +341,10 @@ class AdaptiveSender:
         write_json(self.output / "result.json", result)
         if save_adapter and self.trainer is not None:
             self.generator.backend.save_adapter(self.output / "sender_adapter.npz")
+        write_json(self.output / "group_policies.json", {"format": "cr_group_policies_v1", "game": self.game.record(),
+                   "groups": {self.group_id: {"messages": self.messages, "policy": policy,
+                              "policy_definition": result["policy_definition"],
+                              "receiver_signature": channel.receiver_signature}}})
         return result
 
     def run(self):

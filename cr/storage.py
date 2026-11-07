@@ -61,8 +61,52 @@ def append_json(path, value):
         os.fsync(stream.fileno())
 
 
+def write_npz(path, **arrays):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="wb", dir=path.parent, prefix="adapter-", delete=False) as stream:
+            temporary = Path(stream.name)
+            np.savez_compressed(stream, **arrays)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def read_jsonl(path):
     return [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
+
+
+def recover_jsonl(path):
+    """Retain committed records and discard an interrupted final fragment."""
+    path = Path(path)
+    if not path.exists():
+        return []
+    rows, offset = [], 0
+    with path.open("r+b") as stream:
+        for line in stream:
+            try:
+                row = json.loads(line)
+                if not isinstance(row, dict):
+                    raise ValueError("A progress record is a JSON object")
+            except (ValueError, UnicodeDecodeError):
+                if line.endswith(b"\n"):
+                    raise ValueError("A committed progress record is invalid") from None
+                stream.truncate(offset)
+                break
+            rows.append(row)
+            offset += len(line)
+            if not line.endswith(b"\n"):
+                stream.seek(0, os.SEEK_END)
+                stream.write(b"\n")
+                break
+        stream.flush()
+        os.fsync(stream.fileno())
+    return rows
 
 
 def write_channel(path, game, messages, measurements, metadata=None):

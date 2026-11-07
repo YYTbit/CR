@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cost-reinterpretation"
-version = "1.0.0"
+version = "1.1.0"
 description = "The Cost of Reinterpretation: Sender Adaptation against Measured Language Receivers"
 readme = "README.md"
 requires-python = ">=3.10"
