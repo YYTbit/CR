@@ -61,6 +61,9 @@ class GRPOTrainer:
         if not self.backend.adapters:
             self.backend.enable_lora(settings.get("rank", 16), settings.get("scale", 32), seed,
                                      settings.get("activation_checkpointing", True))
+        elif any(module.rank != settings.get("rank", 16) or module.scale != settings.get("scale", 32)
+                 for module in self.backend.adapters.values()):
+            raise ValueError("Loaded sender adapters must match the configured training rank and scale")
         parameters = [parameter for parameter in self.backend.model.parameters() if parameter.requires_grad]
         self.optimizer = torch.optim.AdamW(parameters, lr=settings.get("learning_rate", 2e-5),
                                           betas=(0.9, 0.999), weight_decay=settings.get("weight_decay", 0.0))
@@ -102,11 +105,16 @@ class GRPOTrainer:
             raise ValueError("Sender update requires training contexts")
         if stage_limit is not None:
             self.engine.ledger.set_stage_limit("acquisition", round_id, stage_limit)
-        groups_per_batch = int(self.settings.get("rollout_batch", 8))
+        rollout_batch = int(self.settings.get("rollout_batch", 8))
         accumulation = int(self.settings.get("gradient_accumulation", 2))
+        group_size = int(self.settings.get("group_size", 8))
         updates = int(self.settings.get("updates_per_round", 2))
-        if min(groups_per_batch, accumulation, updates) < 1:
+        if min(rollout_batch, accumulation, updates) < 1 or group_size < 2:
             raise ValueError("GRPO batch, accumulation, and update counts are positive")
+        # Native GRPO batch sizes count completions, including every generation in a prompt group.
+        if rollout_batch * accumulation % group_size:
+            raise ValueError("The accumulated rollout batch contains complete GRPO groups")
+        groups_per_update = rollout_batch * accumulation // group_size
         total_steps = int(self.settings.get("total_optimizer_steps", updates * 4))
         records = []
         for update in range(updates):
@@ -114,8 +122,9 @@ class GRPOTrainer:
             batch_groups = []
             exhausted = False
             try:
-                for index in range(groups_per_batch * accumulation):
-                    context, proposition = contexts[(round_id * groups_per_batch * accumulation + index) % len(contexts)]
+                for index in range(groups_per_update):
+                    offset = (round_id * updates + update) * groups_per_update + index
+                    context, proposition = contexts[offset % len(contexts)]
                     identifier = context_group(context, proposition)
                     prices = solution[identifier] if isinstance(solution, dict) else solution
                     information = exposure[identifier] if isinstance(exposure, dict) else exposure

@@ -156,11 +156,12 @@ def drift_audit(prior, marginal, cached, refreshed, cached_errors=None, refreshe
             if array.shape != errors.shape or not np.isfinite(array).all() or np.any(array < 0):
                 raise ValueError("Posterior error radii are finite nonnegative message-level l1 bounds")
             errors += array
+    bounds_supplied = cached_errors is not None and refreshed_errors is not None
     return {"posterior_movement": movement, "cached_residual": old_residual, "refreshed_residual": new_residual,
             "residual_difference_bound": difference,
             "residual_norm_bound": max(float(np.linalg.norm(old_residual, 1) - np.linalg.norm(new_residual, 1)), 0.0),
-            "error_adjusted_lower_bound": max(difference - float(marginal @ errors), 0.0),
-            "statistical_error_bounds_supplied": cached_errors is not None and refreshed_errors is not None}
+            "error_adjusted_lower_bound": max(difference - float(marginal @ errors), 0.0) if bounds_supplied else None,
+            "statistical_error_bounds_supplied": bounds_supplied}
 
 
 def controlled_transfer(marginal, recipient, donor, amount):

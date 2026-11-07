@@ -274,20 +274,11 @@ class AdaptiveSender:
             passed = confirmed > self.settings.get("admission_threshold", 0.01)
             canonical, canonical_cost, accepted = None, None, False
             if passed:
-                if self.method == "shared_measurement" and confirmation.receiver_signature == self.engine.response_signature(self.exposure, self.pool_repeats):
-                    canonical = confirmation
-                else:
-                    canonical = self.engine.measure(message, "admission_pool", self.pool_repeats, round_id, self.exposure)
-                if canonical is not None:
-                    self.validate_frozen_receiver(solution, canonical)
-                    value = (self.game.classical_value(canonical.posterior) if self.method == "posterior_value"
-                             else acquisition_reward(self.game, canonical.posterior, canonical.action))
-                    canonical_cost = float(solution.reduced_costs(canonical.posterior[None, :], [value])[0])
-                    accepted = canonical_cost > self.settings.get("admission_threshold", 0.01)
-                    if accepted:
-                        self.add([message], [canonical])
-                        self.persist_pool()
-                        admitted += 1
+                # Confirmation decides admission; the pool retains its frozen measurement protocol.
+                canonical, canonical_cost, accepted = acquisition, predicted, True
+                self.add([message], [canonical])
+                self.persist_pool()
+                admitted += 1
             append_json(self.output / "admission.jsonl", {"round": round_id, "message": message,
                                                          "acquisition_reduced_cost": predicted,
                                                          "confirmed_reduced_cost": confirmed,

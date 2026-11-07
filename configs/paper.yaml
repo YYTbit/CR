@@ -22,6 +22,7 @@ training:
   rank: 16
   scale: 32
   learning_rate: 2.0e-5
+  # Rollout batches count completions; group_size gives generations per prompt.
   rollout_batch: 8
   gradient_accumulation: 2
   group_size: 8
