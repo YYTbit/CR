@@ -26,9 +26,13 @@ measurement, sender learning, and adaptation.
 
 **Figure 1.** Measured-receiver persuasion. Beliefs and actions define the sender program; training and remeasurement update its policy. The illustrated channel has a positive classical-to-measured gap, distinct from the sender optimization gap.
 
+The pseudocode for adaptive measured-receiver optimization is as follows:
+
 ![Algorithm 1](assets/figures/algorithm.png)
 
 To optimize communication while maintaining a current receiver model, we combine exact finite-pool optimization with message acquisition. First, a compatible sender program defines the acquisition objective. Next, its dual prices guide generator training. Finally, the consistency analysis quantifies the adjustment associated with a proposed policy change and motivates receiver remeasurement.
+
+The algorithm flow includes:
 
 1. **Measured sender optimization.** Measuring both quantities allows the sender objective to reflect the receiver’s observed decisions. Bayes plausibility identifies the message mixtures that admit a compatible signaling policy, yielding an exact finite linear program. The program separates the value available within the measured pool from the value attained by a particular sender.
 
