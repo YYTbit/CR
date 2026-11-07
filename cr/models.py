@@ -284,9 +284,12 @@ class LanguageGenerator:
             for state in range(len(self.game.prior)):
                 for index, message in enumerate(messages):
                     prompt = self.backend.encode(sender_prompt(self.game, context, state))
-                    content = tuple(self.backend.tokenizer.encode(message.text, add_special_tokens=False)) + (int(eos),)
-                    if len(content) < 2 or len(content) > self.backend.max_completion_tokens:
+                    content = tuple(self.backend.tokenizer.encode(message.text, add_special_tokens=False))
+                    if not content or len(content) > self.backend.max_completion_tokens:
                         raise ValueError("Finite-pool sequence exceeds the declared completion-token budget")
+                    # At the token limit, score the emitted prefix without adding a token.
+                    if len(content) < self.backend.max_completion_tokens:
+                        content += (int(eos),)
                     scores[state, index] = float(self.backend.token_log_probabilities(Completion(prompt, content, message.text, 0)).sum())
         scores -= scores.max(axis=1, keepdims=True)
         weights = np.exp(scores)
